@@ -2,14 +2,20 @@ package com.xingchengcode.android
 
 import android.app.Activity
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
+import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.forEachGesture
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -18,9 +24,15 @@ import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -30,12 +42,21 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
+import androidx.core.graphics.applyCanvas
+import androidx.core.net.toUri
+import androidx.lifecycle.lifecycleScope
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
+import com.xingchengcode.android.BuildConfig.APPLICATION_ID
 import com.xingchengcode.android.ui.theme.XingchengcodeTheme
 import com.xingchengcode.android.ui.widget.TextFieldWithClear
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import okhttp3.internal.wait
 import java.text.SimpleDateFormat
+import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,16 +69,61 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colors.background
                 ) {
                     SetSystemUi(color = Color(0xFFF6F6F6))
+
+
+                    var capturingViewBounds by remember { mutableStateOf<Rect?>(null) }
+                    val view = LocalView.current
                     Scaffold(
                         topBar = {
-                            TopAppBar()
-                        }
+                            TopAppBar(onMore = {
+                                lifecycleScope.launch {
+                                    delay(500)
+                                    screenshotAndShare(capturingViewBounds, view)
+                                }
+                            })
+                        },
+                        modifier = Modifier
+                            .onGloballyPositioned {
+                                capturingViewBounds = it.boundsInRoot()
+                            }
                     ) {
                         Content()
                     }
                 }
             }
         }
+    }
+
+
+    private suspend fun screenshotAndShare(
+        capturingViewBounds: Rect?,
+        view: View
+    ) {
+        val bounds = capturingViewBounds ?: return
+        val image = Bitmap.createBitmap(
+            bounds.width.roundToInt(), bounds.height.roundToInt(),
+            Bitmap.Config.ARGB_8888
+        ).applyCanvas {
+            translate(-bounds.left, -bounds.top)
+            view.draw(this)
+        }
+        val file = saveBitmap(
+            this@MainActivity,
+            "screenshots.jpg",
+            image
+        ) ?: return
+        val uri = FileProvider.getUriForFile(
+            this@MainActivity,
+            "$APPLICATION_ID.provider",
+            file
+        )
+        Log.d("onCreate: ", "${file.absolutePath}\n${uri.toString()}")
+        val intent = Intent();
+        intent.action = Intent.ACTION_SEND;
+        //                                    intent.data = uri
+        intent.type = "image/*";
+        intent.putExtra(Intent.EXTRA_STREAM, uri)
+        startActivity(intent);
     }
 
     @Composable
@@ -416,7 +482,7 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun TopAppBar() {
+    private fun TopAppBar(onMore: (() -> Unit)) {
         val content = LocalContext.current
         TopAppBar(backgroundColor = Color(0xFFF6F6F6)) {
             Row(
@@ -445,13 +511,11 @@ class MainActivity : ComponentActivity() {
                             .wrapContentWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-
                         Box(
                             Modifier
                                 .fillMaxHeight()
-                                .clickable {
-
-                                }, Alignment.Center
+                                .clickable { onMore.invoke() }
+                            , Alignment.Center
                         ) {
                             Image(
                                 painter = painterResource(id = R.drawable.wechat_more),
