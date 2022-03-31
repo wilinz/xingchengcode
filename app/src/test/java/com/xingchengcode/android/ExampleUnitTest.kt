@@ -12,6 +12,6 @@ import org.junit.Assert.*
 class ExampleUnitTest {
     @Test
     fun addition_isCorrect() {
-        assertEquals(4, 2 + 2)
+        println("17891140504".replace(Regex("""(\d{3})\d{4}(\d{4})"""), "$1****$2"))
     }
 }

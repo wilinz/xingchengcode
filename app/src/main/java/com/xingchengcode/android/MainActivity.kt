@@ -11,6 +11,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,17 +26,20 @@ import androidx.compose.ui.text.ParagraphStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
 import coil.compose.rememberImagePainter
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
 import com.xingchengcode.android.ui.theme.XingchengcodeTheme
+import com.xingchengcode.android.ui.widget.TextFieldWithClear
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -63,6 +68,45 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
+    fun InputDialog(
+        title: @Composable (() -> Unit)? = null,
+        placeholder: @Composable (() -> Unit)? = null,
+        expand: Boolean,
+        onDismissRequest: (String) -> Unit
+    ) {
+        if (expand) {
+            var value by remember {
+                mutableStateOf("")
+            }
+            AlertDialog(
+                onDismissRequest = { onDismissRequest("") },
+                confirmButton = {
+                    TextButton(onClick = { onDismissRequest(value) }) {
+                        Text(text = "确定")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { onDismissRequest("") }) {
+                        Text(text = "取消")
+                    }
+                },
+                title = title,
+                text = {
+                    TextFieldWithClear(
+                        value = value,
+                        onValueChange = { value = it },
+                        Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { onDismissRequest(value) }),
+                        placeholder = placeholder
+                    )
+                }
+            )
+        }
+    }
+
+    @Composable
     private fun Content() {
         Column(Modifier.fillMaxSize()) {
             Box(
@@ -77,13 +121,13 @@ class MainActivity : ComponentActivity() {
                         .padding(horizontal = 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-    //                                    Text(
-    //                                        text = "通信大数据行程卡",
-    //                                        fontSize = 30.sp,
-    //                                        color = Color.White,
-    //                                        fontWeight = FontWeight.Black,
-    //                                        modifier = Modifier.padding(top = 32.dp)
-    //                                    )
+                    //                                    Text(
+                    //                                        text = "通信大数据行程卡",
+                    //                                        fontSize = 30.sp,
+                    //                                        color = Color.White,
+                    //                                        fontWeight = FontWeight.Black,
+                    //                                        modifier = Modifier.padding(top = 32.dp)
+                    //                                    )
                     Spacer(modifier = Modifier.height(32.dp))
                     Image(
                         painter = painterResource(id = R.drawable.title),
@@ -188,12 +232,29 @@ class MainActivity : ComponentActivity() {
                         .padding(vertical = 12.dp, horizontal = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    val phone by AppGlobalData.getPhone().collectAsState(initial = "请选择")
+                    var expand by remember {
+                        mutableStateOf(false)
+                    }
                     Text(
-                        text = "178****6578的动态行程卡",
+                        text = if (phone.isNotEmpty()) "${phone.formatPhone()}的动态行程卡" else "点击此处输入手机号",
                         color = Color(0xFF47464C),
                         fontWeight = FontWeight.Black,
-
-                        )
+                        modifier = Modifier.clickable {
+                            expand = true
+                        }
+                    )
+                    InputDialog(
+                        title = { Text(text = "请输入手机号") },
+                        placeholder = { Text(text = "手机号") },
+                        expand = expand,
+                        onDismissRequest = {
+                            expand = false
+                            if (it.isNotEmpty()) {
+                                AppGlobalData.setPhone(it)
+                            }
+                        }
+                    )
                     val time by remember {
                         mutableStateOf(
                             SimpleDateFormat("yyyy.MM.dd HH:mm:ss").format(
@@ -254,6 +315,10 @@ class MainActivity : ComponentActivity() {
                             top = 24.dp
                         )
                     )
+                    val place by AppGlobalData.getPlace().collectAsState(initial = "请选择")
+                    var expand2 by remember {
+                        mutableStateOf(false)
+                    }
                     Text(
                         text = buildAnnotatedString {
                             withStyle(
@@ -273,11 +338,24 @@ class MainActivity : ComponentActivity() {
                                     fontWeight = FontWeight.ExtraBold
                                 )
                             ) {
-                                append("广西壮族自治区河池市")
+                                append(if (place.isNotEmpty()) place else "点击此处输入地点")
                             }
                         },
-                        fontSize = 16.sp
+                        fontSize = 16.sp,
+                        modifier = Modifier.clickable {
+                            expand2 = true
+                        }
                     )
+                    InputDialog(
+                        title = { Text(text = "请输入地点") },
+                        placeholder = { Text(text = "地点") },
+                        expand = expand2,
+                        onDismissRequest = {
+                            expand2 = false
+                            if (it.isNotEmpty()) {
+                                AppGlobalData.setPlace(it)
+                            }
+                        })
                 }
             }
         }
@@ -331,6 +409,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    fun String.formatPhone(): String {
+        return this.replace(Regex("""(\d{3})\d{4}(\d{4})"""), "$1****$2");
     }
 
     @Composable
